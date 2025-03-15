@@ -48,6 +48,16 @@ export default function RouteVisualizer({
     async function loadRoute() {
       setIsLoading(true);
 
+      // Reset drawing state when route changes
+      setDrawingMode(false);
+      setPoints([]);
+      setLines([]);
+      setLineFinished(false);
+
+      // Clear existing images before loading new ones
+      setImage(null);
+      setLineSavedImage(null);
+
       // Load main route image if available
       if (selectedRoute?.image) {
         const img = new window.Image();
@@ -59,8 +69,6 @@ export default function RouteVisualizer({
         img.onerror = () => {
           alert("Failed to load image");
         };
-      } else {
-        setImage(null);
       }
 
       // Just store the URL for the line image
@@ -68,7 +76,6 @@ export default function RouteVisualizer({
         setLineSavedImage(selectedRoute.image_line);
         setIsLoading(false);
       } else {
-        setLineSavedImage(null);
         setIsLoading(false);
       }
     }
