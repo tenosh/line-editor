@@ -16,7 +16,7 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex flex-col p-5 max-w-[1200px] mx-auto">
+    <div className="flex flex-col p-5 mx-auto">
       <RouteVisualizer routes={(routes as Route[]) || []} />
     </div>
   );

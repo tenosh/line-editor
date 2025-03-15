@@ -10,6 +10,7 @@ export interface Route {
   description?: string;
   grade?: string;
   image?: string;
+  image_line?: string;
   line_data?: number[];
   areaId: string;
 }
@@ -21,6 +22,9 @@ interface RouteVisualizerProps {
 export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [lineSavedImage, setLineSavedImage] = useState<HTMLImageElement | null>(
+    null
+  );
   const [lines, setLines] = useState<number[][]>([]);
   const [drawingMode, setDrawingMode] = useState<boolean>(false);
   const [points, setPoints] = useState<number[]>([]);
@@ -40,19 +44,39 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
     if (!selectedRoute) return;
 
     async function loadRoute() {
+      setIsLoading(true);
+
+      // Load main route image if available
       if (selectedRoute?.image) {
-        setIsLoading(true);
         const img = new window.Image();
         img.crossOrigin = "Anonymous";
         img.src = selectedRoute.image;
         img.onload = () => {
           setImage(img);
-          setIsLoading(false);
         };
         img.onerror = () => {
-          setIsLoading(false);
           alert("Failed to load image");
         };
+      } else {
+        setImage(null);
+      }
+
+      // Load saved line image if available
+      if (selectedRoute?.image_line) {
+        const lineImg = new window.Image();
+        lineImg.crossOrigin = "Anonymous";
+        lineImg.src = selectedRoute.image_line;
+        lineImg.onload = () => {
+          setLineSavedImage(lineImg);
+          setIsLoading(false);
+        };
+        lineImg.onerror = () => {
+          setLineSavedImage(null);
+          setIsLoading(false);
+        };
+      } else {
+        setLineSavedImage(null);
+        setIsLoading(false);
       }
     }
 
@@ -82,8 +106,9 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
   const toggleDrawingMode = () => {
     setDrawingMode(!drawingMode);
     if (drawingMode) {
-      // Clear the current points when exiting drawing mode
+      // Clear both points and lines when exiting drawing mode
       setPoints([]);
+      setLines([]);
       setLineFinished(false);
     }
   };
@@ -166,6 +191,20 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
 
           if (!response.ok) {
             throw new Error("Failed to optimize and save image");
+          }
+
+          // Get the response data which should include the saved image URL
+          const data = await response.json();
+
+          // If the response includes the image_line URL, update our state
+          if (data.image_line) {
+            // Load the new image
+            const lineImg = new window.Image();
+            lineImg.crossOrigin = "Anonymous";
+            lineImg.src = data.image_line;
+            lineImg.onload = () => {
+              setLineSavedImage(lineImg);
+            };
           }
 
           // Replace alert with toast notification
@@ -313,104 +352,208 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
         </div>
       )}
 
-      <div className="border border-gray-300 rounded-lg overflow-hidden mb-5 relative">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-[300px] bg-gray-100">
-            <div className="flex flex-col items-center">
-              <svg
-                className="animate-spin h-10 w-10 text-indigo-600"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <p className="mt-2 text-gray-600">Cargando imagen...</p>
+      <div className="flex flex-col md:flex-row gap-5">
+        {/* Drawing Canvas Section */}
+        <div className="border border-gray-300 rounded-lg overflow-x-auto mb-5 relative md:flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-[300px] bg-gray-100">
+              <div className="flex flex-col items-center">
+                <svg
+                  className="animate-spin h-10 w-10 text-indigo-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <p className="mt-2 text-gray-600">Cargando imagen...</p>
+              </div>
             </div>
-          </div>
-        ) : image ? (
-          <Stage
-            width={image.width}
-            height={image.height}
-            onMouseDown={handleMouseDown}
-            ref={stageRef}
-          >
-            <Layer>
-              <KonvaImage image={image} ref={imageRef} />
+          ) : image ? (
+            <div
+              style={{
+                minWidth: `${image.width}px`,
+                width: `${image.width}px`,
+              }}
+            >
+              <Stage
+                width={image.width}
+                height={image.height}
+                onMouseDown={handleMouseDown}
+                ref={stageRef}
+              >
+                <Layer>
+                  <KonvaImage image={image} ref={imageRef} />
 
-              {lines.map((line, i) => (
-                <Line
-                  key={i}
-                  points={line}
-                  stroke="#ff3e00"
-                  strokeWidth={4}
-                  tension={0}
-                  lineCap="round"
-                  lineJoin="round"
-                />
-              ))}
-
-              {drawingMode && points.length > 0 && (
-                <>
-                  <Line
-                    points={points}
-                    stroke="#ff3e00"
-                    strokeWidth={4}
-                    tension={0}
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-
-                  {Array.from({ length: points.length / 2 }).map((_, i) => (
-                    <Circle
+                  {lines.map((line, i) => (
+                    <Line
                       key={i}
-                      x={points[i * 2]}
-                      y={points[i * 2 + 1]}
-                      radius={6}
-                      fill="#ff3e00"
-                      stroke="#ffffff"
-                      strokeWidth={2}
+                      points={line}
+                      stroke="#ff3e00"
+                      strokeWidth={4}
+                      tension={0}
+                      lineCap="round"
+                      lineJoin="round"
                     />
                   ))}
-                </>
-              )}
-            </Layer>
-          </Stage>
-        ) : (
-          <div className="flex items-center justify-center h-[300px] bg-gray-100">
-            <div className="text-center p-8">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <p className="mt-2 text-gray-600">
-                Selecciona una ruta para ver su imagen
-              </p>
+
+                  {drawingMode && points.length > 0 && (
+                    <>
+                      <Line
+                        points={points}
+                        stroke="#ff3e00"
+                        strokeWidth={4}
+                        tension={0}
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+
+                      {Array.from({ length: points.length / 2 }).map((_, i) => (
+                        <Circle
+                          key={i}
+                          x={points[i * 2]}
+                          y={points[i * 2 + 1]}
+                          radius={6}
+                          fill="#ff3e00"
+                          stroke="#ffffff"
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </>
+                  )}
+                </Layer>
+              </Stage>
             </div>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] bg-gray-100">
+              <div className="text-center p-8">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-12 w-12 mx-auto text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <p className="mt-2 text-gray-600">
+                  Selecciona una ruta para ver su imagen
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Saved Line Image Section */}
+        <div className="border border-gray-300 rounded-lg overflow-x-auto mb-5 relative md:flex-1">
+          <div className="flex items-center justify-center h-full min-h-[300px]">
+            {isLoading ? (
+              <div className="flex flex-col items-center">
+                <svg
+                  className="animate-spin h-10 w-10 text-indigo-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <p className="mt-2 text-gray-600">
+                  Cargando imagen guardada...
+                </p>
+              </div>
+            ) : lineSavedImage ? (
+              <div
+                style={{
+                  minWidth: `${lineSavedImage.width}px`,
+                  width: `${lineSavedImage.width}px`,
+                }}
+              >
+                <h3 className="text-center font-medium text-gray-700 mb-2">
+                  Línea guardada
+                </h3>
+                <img
+                  src={lineSavedImage.src}
+                  alt="Línea de ruta guardada"
+                  width={lineSavedImage.width}
+                  height={lineSavedImage.height}
+                  style={{
+                    width: `${lineSavedImage.width}px`,
+                    height: `${lineSavedImage.height}px`,
+                  }}
+                />
+              </div>
+            ) : selectedRoute ? (
+              <div className="text-center p-8">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-12 w-12 mx-auto text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <p className="mt-2 text-gray-600">
+                  No hay línea guardada disponible para esta ruta
+                </p>
+              </div>
+            ) : (
+              <div className="text-center p-8">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-12 w-12 mx-auto text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <p className="mt-2 text-gray-600">
+                  Selecciona una ruta para ver su línea guardada
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {selectedRoute && (
