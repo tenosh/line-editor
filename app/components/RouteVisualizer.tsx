@@ -160,9 +160,9 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
       // Force a small delay to ensure rendering is complete
       setTimeout(async () => {
         try {
-          // Get the stage as a data URL with better quality
+          // Get the stage as a data URL with pixelRatio: 1 to maintain original dimensions
           const dataURL = stageRef.current.toDataURL({
-            pixelRatio: 2, // Higher quality export
+            pixelRatio: 1, // Changed from 2 to 1 to maintain original dimensions
             mimeType: "image/png",
           });
 
@@ -175,6 +175,8 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
             body: JSON.stringify({
               imageData: dataURL,
               routeId: selectedRoute.id,
+              originalWidth: image?.width, // Send original dimensions
+              originalHeight: image?.height,
             }),
           });
 

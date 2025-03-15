@@ -13,7 +13,8 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { imageData, routeId } = await req.json();
+    const { imageData, routeId, originalWidth, originalHeight } =
+      await req.json();
 
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
@@ -27,13 +28,12 @@ export async function POST(req: Request) {
     // Use better settings to preserve the line visibility while reducing file size
     await sharp(buffer)
       .resize({
-        width: 1200, // Limit maximum width
-        height: 1200, // Limit maximum height
-        fit: "inside", // Maintain aspect ratio
-        withoutEnlargement: true, // Don't enlarge small images
+        width: originalWidth, // Ensure we resize to original dimensions
+        height: originalHeight,
+        fit: "fill",
       })
       .webp({
-        quality: 75, // Lower quality for better compression
+        quality: 80,
         lossless: false,
         nearLossless: false, // Disable near lossless to reduce file size
         effort: 6, // Higher compression effort (0-6)
