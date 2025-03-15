@@ -17,7 +17,6 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col p-5 max-w-[1200px] mx-auto">
-      <h1>Rock Climbing Route Visualizer</h1>
       <RouteVisualizer routes={(routes as Route[]) || []} />
     </div>
   );

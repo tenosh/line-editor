@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
-import { supabase } from "@/lib/supabaseClient";
 
 // TypeScript interfaces
 export interface Route {
