@@ -31,6 +31,8 @@ export default function RouteVisualizer({
   const [drawingMode, setDrawingMode] = useState<boolean>(false);
   const [points, setPoints] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [imageLoading, setImageLoading] = useState<boolean>(false);
+  const [noImageAvailable, setNoImageAvailable] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [lineFinished, setLineFinished] = useState<boolean>(false);
   const [toast, setToast] = useState<{
@@ -47,6 +49,7 @@ export default function RouteVisualizer({
 
     async function loadRoute() {
       setIsLoading(true);
+      setNoImageAvailable(false);
 
       // Reset drawing state when route changes
       setDrawingMode(false);
@@ -60,15 +63,22 @@ export default function RouteVisualizer({
 
       // Load main route image if available
       if (selectedRoute?.image) {
+        setImageLoading(true);
         const img = new window.Image();
         img.crossOrigin = "Anonymous";
         img.src = selectedRoute.image;
+
         img.onload = () => {
           setImage(img);
+          setImageLoading(false);
         };
         img.onerror = () => {
+          setImageLoading(false);
+          setNoImageAvailable(true);
           alert("Failed to load image");
         };
+      } else {
+        setNoImageAvailable(true);
       }
 
       // Just store the URL for the line image
@@ -362,7 +372,7 @@ export default function RouteVisualizer({
       <div className="flex flex-col md:flex-row gap-5">
         {/* Drawing Canvas Section */}
         <div className="border border-gray-300 rounded-lg overflow-x-auto mb-5 relative md:flex-1">
-          {isLoading ? (
+          {isLoading || imageLoading ? (
             <div className="flex items-center justify-center h-[300px] bg-gray-100">
               <div className="flex flex-col items-center">
                 <svg
@@ -442,6 +452,29 @@ export default function RouteVisualizer({
                   )}
                 </Layer>
               </Stage>
+            </div>
+          ) : noImageAvailable && selectedRoute ? (
+            <div className="flex items-center justify-center h-[300px] bg-gray-100">
+              <div className="text-center p-8">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-12 w-12 mx-auto text-amber-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <p className="mt-2 text-gray-600">
+                  No hay imagen disponible para{" "}
+                  {tableType === "route" ? "esta ruta" : "este boulder"}
+                </p>
+              </div>
             </div>
           ) : (
             <div className="flex items-center justify-center h-[300px] bg-gray-100">
