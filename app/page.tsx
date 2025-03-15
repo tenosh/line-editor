@@ -6,7 +6,7 @@ export default async function Home() {
   // Fetch routes server-side
   const { data: routes, error } = await supabase
     .from("route")
-    .select("id, name, image")
+    .select("id, name, image, image_line")
     .order("name");
 
   if (error) {

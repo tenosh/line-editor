@@ -24,17 +24,19 @@ export async function POST(req: Request) {
     const tmpFilePath = path.join(tmpDir, `${routeId}.webp`);
 
     // Optimize the image with the line drawn on it
-    // Use better settings to preserve the line visibility
+    // Use better settings to preserve the line visibility while reducing file size
     await sharp(buffer)
-      .webp({
-        quality: 90, // Higher quality to preserve the line
-        lossless: false,
-        nearLossless: true,
+      .resize({
+        width: 1200, // Limit maximum width
+        height: 1200, // Limit maximum height
+        fit: "inside", // Maintain aspect ratio
+        withoutEnlargement: true, // Don't enlarge small images
       })
-      .resize(1200, null, {
-        // Max width 1200px, maintain aspect ratio
-        withoutEnlargement: true,
-        fit: "inside",
+      .webp({
+        quality: 75, // Lower quality for better compression
+        lossless: false,
+        nearLossless: false, // Disable near lossless to reduce file size
+        effort: 6, // Higher compression effort (0-6)
       })
       .toFile(tmpFilePath);
 

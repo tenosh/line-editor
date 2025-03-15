@@ -22,9 +22,7 @@ interface RouteVisualizerProps {
 export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [lineSavedImage, setLineSavedImage] = useState<HTMLImageElement | null>(
-    null
-  );
+  const [lineSavedImage, setLineSavedImage] = useState<string | null>(null);
   const [lines, setLines] = useState<number[][]>([]);
   const [drawingMode, setDrawingMode] = useState<boolean>(false);
   const [points, setPoints] = useState<number[]>([]);
@@ -61,19 +59,10 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
         setImage(null);
       }
 
-      // Load saved line image if available
+      // Just store the URL for the line image
       if (selectedRoute?.image_line) {
-        const lineImg = new window.Image();
-        lineImg.crossOrigin = "Anonymous";
-        lineImg.src = selectedRoute.image_line;
-        lineImg.onload = () => {
-          setLineSavedImage(lineImg);
-          setIsLoading(false);
-        };
-        lineImg.onerror = () => {
-          setLineSavedImage(null);
-          setIsLoading(false);
-        };
+        setLineSavedImage(selectedRoute.image_line);
+        setIsLoading(false);
       } else {
         setLineSavedImage(null);
         setIsLoading(false);
@@ -196,14 +185,14 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
           // Get the response data which should include the saved image URL
           const data = await response.json();
 
-          // If the response includes the image_line URL, update our state
-          if (data.image_line) {
+          // Update our state with the URL returned from the API
+          if (data.url) {
             // Load the new image
             const lineImg = new window.Image();
             lineImg.crossOrigin = "Anonymous";
-            lineImg.src = data.image_line;
+            lineImg.src = data.url;
             lineImg.onload = () => {
-              setLineSavedImage(lineImg);
+              setLineSavedImage(data.url);
             };
           }
 
@@ -493,21 +482,18 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
             ) : lineSavedImage ? (
               <div
                 style={{
-                  minWidth: `${lineSavedImage.width}px`,
-                  width: `${lineSavedImage.width}px`,
+                  minWidth: image ? `${image.width}px` : "auto",
+                  width: image ? `${image.width}px` : "auto",
                 }}
               >
-                <h3 className="text-center font-medium text-gray-700 mb-2">
-                  Línea guardada
-                </h3>
                 <img
-                  src={lineSavedImage.src}
+                  src={lineSavedImage}
                   alt="Línea de ruta guardada"
-                  width={lineSavedImage.width}
-                  height={lineSavedImage.height}
+                  width={image?.width}
+                  height={image?.height}
                   style={{
-                    width: `${lineSavedImage.width}px`,
-                    height: `${lineSavedImage.height}px`,
+                    width: image ? `${image.width}px` : "auto",
+                    height: image ? `${image.height}px` : "auto",
                   }}
                 />
               </div>
