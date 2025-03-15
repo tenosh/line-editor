@@ -141,32 +141,45 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
 
     try {
       setIsSaving(true);
-      // Get the stage as a data URL
-      const dataURL = stageRef.current.toDataURL();
 
-      // Send to our API endpoint
-      const response = await fetch("/api/optimize-route-line", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageData: dataURL,
-          routeId: selectedRoute.id,
-        }),
-      });
+      // Make sure we're capturing the entire stage with all elements
+      // Force a small delay to ensure rendering is complete
+      setTimeout(async () => {
+        try {
+          // Get the stage as a data URL with better quality
+          const dataURL = stageRef.current.toDataURL({
+            pixelRatio: 2, // Higher quality export
+            mimeType: "image/png",
+          });
 
-      if (!response.ok) {
-        throw new Error("Failed to optimize and save image");
-      }
+          // Send to our API endpoint
+          const response = await fetch("/api/optimize-route-line", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imageData: dataURL,
+              routeId: selectedRoute.id,
+            }),
+          });
 
-      // Replace alert with toast notification
-      showToast("¡Línea de ruta guardada con éxito!", "success");
+          if (!response.ok) {
+            throw new Error("Failed to optimize and save image");
+          }
+
+          // Replace alert with toast notification
+          showToast("¡Línea de ruta guardada con éxito!", "success");
+          setIsSaving(false);
+        } catch (error) {
+          console.error("Error saving line:", error);
+          showToast("Error al guardar la línea", "error");
+          setIsSaving(false);
+        }
+      }, 100); // Small delay to ensure rendering is complete
     } catch (error) {
       console.error("Error saving line:", error);
-      // Replace alert with toast notification
       showToast("Error al guardar la línea", "error");
-    } finally {
       setIsSaving(false);
     }
   };

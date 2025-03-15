@@ -23,9 +23,14 @@ export async function POST(req: Request) {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "route-lines-"));
     const tmpFilePath = path.join(tmpDir, `${routeId}.webp`);
 
-    // Optimize image using Sharp
+    // Optimize the image with the line drawn on it
+    // Use better settings to preserve the line visibility
     await sharp(buffer)
-      .webp({ quality: 80 }) // Convert to WebP format with 80% quality
+      .webp({
+        quality: 90, // Higher quality to preserve the line
+        lossless: false,
+        nearLossless: true,
+      })
       .resize(1200, null, {
         // Max width 1200px, maintain aspect ratio
         withoutEnlargement: true,
@@ -36,8 +41,9 @@ export async function POST(req: Request) {
     // Read the optimized file
     const optimizedBuffer = await fs.readFile(tmpFilePath);
 
-    // Upload to Supabase Storage
-    const fileName = `${routeId}.webp`;
+    // Upload to Supabase Storage with a unique name to avoid caching issues
+    const timestamp = new Date().getTime();
+    const fileName = `${routeId}_${timestamp}.webp`;
     const filePath = `routes_lines/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -67,7 +73,11 @@ export async function POST(req: Request) {
     // Clean up temp files
     await fs.rm(tmpDir, { recursive: true });
 
-    return NextResponse.json({ success: true, url: publicUrl });
+    return NextResponse.json({
+      success: true,
+      url: publicUrl,
+      message: "Image with line saved successfully",
+    });
   } catch (error) {
     console.error("Error processing image:", error);
     return NextResponse.json(
