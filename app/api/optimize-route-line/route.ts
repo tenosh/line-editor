@@ -13,30 +13,35 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { imageData, routeId, originalWidth, originalHeight } =
+    const { imageData, routeId, originalWidth, originalHeight, tableType } =
       await req.json();
+
+    // Determine folder name based on table type
+    const folderName =
+      tableType === "boulder" ? "boulders-lines" : "routes_lines";
 
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64Data, "base64");
 
     // Create temp directory
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "route-lines-"));
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${tableType}-lines-`)
+    );
     const tmpFilePath = path.join(tmpDir, `${routeId}.webp`);
 
     // Optimize the image with the line drawn on it
-    // Use better settings to preserve the line visibility while reducing file size
     await sharp(buffer)
       .resize({
-        width: originalWidth, // Ensure we resize to original dimensions
+        width: originalWidth,
         height: originalHeight,
         fit: "fill",
       })
       .webp({
         quality: 80,
         lossless: false,
-        nearLossless: false, // Disable near lossless to reduce file size
-        effort: 6, // Higher compression effort (0-6)
+        nearLossless: false,
+        effort: 6,
       })
       .toFile(tmpFilePath);
 
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
     // Upload to Supabase Storage with a unique name to avoid caching issues
     const timestamp = new Date().getTime();
     const fileName = `${routeId}_${timestamp}.webp`;
-    const filePath = `routes_lines/${fileName}`;
+    const filePath = `${folderName}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("cactux")
@@ -62,9 +67,9 @@ export async function POST(req: Request) {
       data: { publicUrl },
     } = supabase.storage.from("cactux").getPublicUrl(filePath);
 
-    // Update route record
+    // Update record in the appropriate table
     const { error: updateError } = await supabase
-      .from("route")
+      .from(tableType)
       .update({
         image_line: publicUrl,
       })

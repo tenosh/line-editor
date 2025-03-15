@@ -17,9 +17,13 @@ export interface Route {
 
 interface RouteVisualizerProps {
   routes: Route[];
+  tableType: "route" | "boulder";
 }
 
-export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
+export default function RouteVisualizer({
+  routes,
+  tableType,
+}: RouteVisualizerProps) {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [lineSavedImage, setLineSavedImage] = useState<string | null>(null);
@@ -177,6 +181,7 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
               routeId: selectedRoute.id,
               originalWidth: image?.width, // Send original dimensions
               originalHeight: image?.height,
+              tableType: tableType, // Pass the table type to the API
             }),
           });
 
@@ -259,7 +264,9 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
           htmlFor="route-select"
           className="block text-sm font-medium text-gray-700 mb-2"
         >
-          Selecciona una ruta:
+          {tableType === "route"
+            ? "Selecciona una ruta:"
+            : "Selecciona un boulder:"}
         </label>
         <select
           id="route-select"
@@ -268,7 +275,9 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
           className="block w-full px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 font-medium"
         >
           <option value="" className="text-gray-500">
-            -- Selecciona una ruta --
+            {tableType === "route"
+              ? "-- Selecciona una ruta --"
+              : "-- Selecciona un boulder --"}
           </option>
           {routes.map((route: any) => (
             <option key={route.id} value={route.id} className="text-gray-900">
@@ -547,7 +556,10 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
       {selectedRoute && (
         <div className="text-sm text-gray-600 mt-2">
           <p>
-            <span className="font-medium">Ruta:</span> {selectedRoute.name}
+            <span className="font-medium">
+              {tableType === "route" ? "Ruta:" : "Boulder:"}
+            </span>{" "}
+            {selectedRoute.name}
           </p>
           {selectedRoute.grade && (
             <p>
