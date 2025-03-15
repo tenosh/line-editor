@@ -25,9 +25,16 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
   const [lines, setLines] = useState<number[][]>([]);
   const [drawingMode, setDrawingMode] = useState<boolean>(false);
   const [points, setPoints] = useState<number[]>([]);
-  const [showLine, setShowLine] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [lineFinished, setLineFinished] = useState<boolean>(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | null;
+  }>({ message: "", type: null });
   const stageRef = useRef<any>(null);
   const imageRef = useRef<any>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load the selected route and its saved line if available
   useEffect(() => {
@@ -35,11 +42,17 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
 
     async function loadRoute() {
       if (selectedRoute?.image) {
+        setIsLoading(true);
         const img = new window.Image();
         img.crossOrigin = "Anonymous";
         img.src = selectedRoute.image;
         img.onload = () => {
           setImage(img);
+          setIsLoading(false);
+        };
+        img.onerror = () => {
+          setIsLoading(false);
+          alert("Failed to load image");
         };
       }
     }
@@ -72,6 +85,7 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
     if (drawingMode) {
       // Clear the current points when exiting drawing mode
       setPoints([]);
+      setLineFinished(false);
     }
   };
 
@@ -93,14 +107,41 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
       setLines([points]);
       setDrawingMode(false);
       setPoints([]);
+      setLineFinished(true);
     }
   };
+
+  // Function to show toast notification
+  const showToast = (message: string, type: "success" | "error") => {
+    // Clear any existing timeout
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    // Set the toast message and type
+    setToast({ message, type });
+
+    // Auto-hide the toast after 3 seconds
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast({ message: "", type: null });
+    }, 3000);
+  };
+
+  // Clean up timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Save line as SVG path data
   const saveLine = async () => {
     if (!selectedRoute || !lines.length || !stageRef.current) return;
 
     try {
+      setIsSaving(true);
       // Get the stage as a data URL
       const dataURL = stageRef.current.toDataURL();
 
@@ -120,78 +161,174 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
         throw new Error("Failed to optimize and save image");
       }
 
-      alert("Route line saved successfully!");
+      // Replace alert with toast notification
+      showToast("¡Línea de ruta guardada con éxito!", "success");
     } catch (error) {
       console.error("Error saving line:", error);
-      alert("Failed to save line");
+      // Replace alert with toast notification
+      showToast("Error al guardar la línea", "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const toggleLineVisibility = () => {
-    setShowLine(!showLine);
-  };
-
   return (
-    <>
+    <div className="bg-slate-50 p-6 rounded-lg shadow-md relative">
+      {/* Toast notification */}
+      {toast.type && (
+        <div
+          className={`absolute top-4 right-4 px-4 py-2 rounded-md shadow-md text-white flex items-center ${
+            toast.type === "success" ? "bg-green-500" : "bg-red-500"
+          } transition-opacity duration-300 ease-in-out`}
+        >
+          {toast.type === "success" ? (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mr-2"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mr-2"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
+          {toast.message}
+        </div>
+      )}
+
       <div className="mb-5">
-        <label htmlFor="route-select">Select a route: </label>
+        <label
+          htmlFor="route-select"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          Selecciona una ruta:
+        </label>
         <select
           id="route-select"
           onChange={handleRouteSelect}
           value={selectedRoute?.id || ""}
+          className="block w-full px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 font-medium"
         >
-          <option value="">-- Select a route --</option>
+          <option value="" className="text-gray-500">
+            -- Selecciona una ruta --
+          </option>
           {routes.map((route: any) => (
-            <option key={route.id} value={route.id}>
+            <option key={route.id} value={route.id} className="text-gray-900">
               {route.name}
             </option>
           ))}
         </select>
       </div>
 
-      <div className="flex gap-2.5 mb-5">
-        <button
-          onClick={toggleDrawingMode}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-        >
-          {drawingMode ? "Cancel Drawing" : "Draw Route Line"}
-        </button>
-        {drawingMode && (
-          <>
+      {image && (
+        <div className="flex flex-wrap gap-2.5 mb-5">
+          <button
+            onClick={toggleDrawingMode}
+            disabled={isLoading || isSaving}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {drawingMode ? "Cancelar Dibujo" : "Dibujar Línea de Ruta"}
+          </button>
+          {drawingMode && (
+            <>
+              <button
+                onClick={undoLastPoint}
+                disabled={points.length < 2 || isLoading || isSaving}
+                className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                Deshacer Último Punto
+              </button>
+              <button
+                onClick={finishLine}
+                disabled={points.length < 4 || isLoading || isSaving}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                Finalizar Línea
+              </button>
+            </>
+          )}
+          {lineFinished && (
             <button
-              onClick={undoLastPoint}
-              disabled={points.length < 2}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              onClick={saveLine}
+              disabled={!selectedRoute || isLoading || isSaving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              Undo Last Point
+              {isSaving ? (
+                <span className="flex items-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Guardando...
+                </span>
+              ) : (
+                "Guardar Línea"
+              )}
             </button>
-            <button
-              onClick={finishLine}
-              disabled={points.length < 4}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              Finish Line
-            </button>
-          </>
-        )}
-        <button
-          onClick={toggleLineVisibility}
-          disabled={!lines.length}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-        >
-          {showLine ? "Hide Line" : "Show Line"}
-        </button>
-        <button
-          onClick={saveLine}
-          disabled={!lines.length || !selectedRoute}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-        >
-          Save Line
-        </button>
-      </div>
+          )}
+        </div>
+      )}
 
-      <div className="border border-gray-300 mb-5 relative">
-        {image ? (
+      <div className="border border-gray-300 rounded-lg overflow-hidden mb-5 relative">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[300px] bg-gray-100">
+            <div className="flex flex-col items-center">
+              <svg
+                className="animate-spin h-10 w-10 text-indigo-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <p className="mt-2 text-gray-600">Cargando imagen...</p>
+            </div>
+          </div>
+        ) : image ? (
           <Stage
             width={image.width}
             height={image.height}
@@ -201,39 +338,36 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
             <Layer>
               <KonvaImage image={image} ref={imageRef} />
 
-              {showLine &&
-                lines.map((line, i) => (
-                  <Line
-                    key={i}
-                    points={line}
-                    stroke="#ff6600"
-                    strokeWidth={4}
-                    tension={0} // Changed from 0.5 to 0 for straight lines
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-                ))}
+              {lines.map((line, i) => (
+                <Line
+                  key={i}
+                  points={line}
+                  stroke="#ff3e00"
+                  strokeWidth={4}
+                  tension={0}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              ))}
 
-              {/* Draw the current line being created */}
               {drawingMode && points.length > 0 && (
                 <>
                   <Line
                     points={points}
-                    stroke="#ff6600"
+                    stroke="#ff3e00"
                     strokeWidth={4}
-                    tension={0} // Straight lines
+                    tension={0}
                     lineCap="round"
                     lineJoin="round"
                   />
 
-                  {/* Draw points as circles */}
                   {Array.from({ length: points.length / 2 }).map((_, i) => (
                     <Circle
                       key={i}
                       x={points[i * 2]}
                       y={points[i * 2 + 1]}
                       radius={6}
-                      fill="#ff6600"
+                      fill="#ff3e00"
                       stroke="#ffffff"
                       strokeWidth={2}
                     />
@@ -243,13 +377,48 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
             </Layer>
           </Stage>
         ) : (
-          <div className="p-[50px] text-center">
-            {selectedRoute
-              ? "Loading image..."
-              : "Select a route to view its image"}
+          <div className="flex items-center justify-center h-[300px] bg-gray-100">
+            <div className="text-center p-8">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-12 w-12 mx-auto text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <p className="mt-2 text-gray-600">
+                Selecciona una ruta para ver su imagen
+              </p>
+            </div>
           </div>
         )}
       </div>
-    </>
+
+      {selectedRoute && (
+        <div className="text-sm text-gray-600 mt-2">
+          <p>
+            <span className="font-medium">Ruta:</span> {selectedRoute.name}
+          </p>
+          {selectedRoute.grade && (
+            <p>
+              <span className="font-medium">Grado:</span> {selectedRoute.grade}
+            </p>
+          )}
+          {selectedRoute.description && (
+            <p>
+              <span className="font-medium">Descripción:</span>{" "}
+              {selectedRoute.description}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
