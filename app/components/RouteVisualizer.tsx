@@ -104,39 +104,21 @@ export default function RouteVisualizer({ routes }: RouteVisualizerProps) {
       // Get the stage as a data URL
       const dataURL = stageRef.current.toDataURL();
 
-      // Convert dataURL to blob
-      const response = await fetch(dataURL);
-      const blob = await response.blob();
+      // Send to our API endpoint
+      const response = await fetch("/api/optimize-route-line", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageData: dataURL,
+          routeId: selectedRoute.id,
+        }),
+      });
 
-      // Generate filename using route ID instead of name
-      const fileExt = "png";
-      const fileName = `${selectedRoute.id}.${fileExt}`;
-      const filePath = `routes_lines/${fileName}`;
-
-      // Upload to Supabase Storage with upsert
-      const { error: uploadError } = await supabase.storage
-        .from("cactux")
-        .upload(filePath, blob, {
-          contentType: "image/png",
-          upsert: true, // This ensures we overwrite existing files
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("cactux").getPublicUrl(filePath);
-
-      // Update route record with only the image_line URL
-      const { error: updateError } = await supabase
-        .from("route")
-        .update({
-          image_line: publicUrl,
-        })
-        .eq("id", selectedRoute.id);
-
-      if (updateError) throw updateError;
+      if (!response.ok) {
+        throw new Error("Failed to optimize and save image");
+      }
 
       alert("Route line saved successfully!");
     } catch (error) {
