@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     // Determine folder name based on table type
     const folderName =
-      tableType === "boulder" ? "boulders-lines" : "routes_lines";
+      tableType === "boulder" ? "boulders_lines" : "routes_lines";
 
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
