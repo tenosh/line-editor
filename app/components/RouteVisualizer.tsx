@@ -84,7 +84,11 @@ export default function RouteVisualizer({
 
       // Just store the URL for the line image
       if (selectedRoute?.image_line) {
-        setLineSavedImage(selectedRoute.image_line);
+        // Add cache-busting parameter to the URL
+        const cachebustedUrl = `${
+          selectedRoute.image_line
+        }?t=${new Date().getTime()}`;
+        setLineSavedImage(cachebustedUrl);
         setIsLoading(false);
       } else {
         setIsLoading(false);
@@ -212,10 +216,11 @@ export default function RouteVisualizer({
 
           // Update our state with the URL returned from the API
           if (data.url) {
+            const cachebustedUrl = `${data.url}?t=${new Date().getTime()}`;
             // Load the new image
             const lineImg = new window.Image();
             lineImg.crossOrigin = "Anonymous";
-            lineImg.src = data.url;
+            lineImg.src = cachebustedUrl;
             lineImg.onload = () => {
               setLineSavedImage(data.url);
             };
