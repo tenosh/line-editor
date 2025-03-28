@@ -49,8 +49,7 @@ export async function POST(req: Request) {
     const optimizedBuffer = await fs.readFile(tmpFilePath);
 
     // Upload to Supabase Storage with a unique name to avoid caching issues
-    const timestamp = new Date().getTime();
-    const fileName = `${routeId}_${timestamp}.webp`;
+    const fileName = `${routeId}.webp`;
     const filePath = `${folderName}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage

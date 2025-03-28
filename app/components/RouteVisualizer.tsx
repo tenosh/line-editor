@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
+import React from "react";
 
 // TypeScript interfaces
 export interface Route {
@@ -415,35 +416,59 @@ export default function RouteVisualizer({
                   <KonvaImage image={image} ref={imageRef} />
 
                   {lines.map((line, i) => (
-                    <Line
-                      key={i}
-                      points={line}
-                      stroke="#ff3e00"
-                      strokeWidth={4}
-                      tension={0}
-                      lineCap="round"
-                      lineJoin="round"
-                    />
+                    <React.Fragment key={`line-${i}`}>
+                      {/* Background/border line (slightly thicker, different color) */}
+                      <Line
+                        key={`border-${i}`}
+                        points={line}
+                        stroke="#5b00d2" // Black border
+                        strokeWidth={8} // Slightly wider than the main line
+                        tension={0}
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+                      {/* Main line */}
+                      <Line
+                        key={`main-${i}`}
+                        points={line}
+                        stroke="white" // Original orange color
+                        strokeWidth={4}
+                        tension={0}
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+                    </React.Fragment>
                   ))}
 
                   {drawingMode && points.length > 0 && (
                     <>
+                      {/* Border line */}
                       <Line
                         points={points}
-                        stroke="#ff3e00"
+                        stroke="#5b00d2"
+                        strokeWidth={8} // Thicker for border effect
+                        tension={0}
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+                      {/* Main line */}
+                      <Line
+                        points={points}
+                        stroke="white"
                         strokeWidth={4}
                         tension={0}
                         lineCap="round"
                         lineJoin="round"
                       />
 
+                      {/* Points remain the same */}
                       {Array.from({ length: points.length / 2 }).map((_, i) => (
                         <Circle
                           key={i}
                           x={points[i * 2]}
                           y={points[i * 2 + 1]}
                           radius={6}
-                          fill="#ff3e00"
+                          fill="#5b00d2"
                           stroke="#ffffff"
                           strokeWidth={2}
                         />
