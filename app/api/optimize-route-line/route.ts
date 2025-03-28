@@ -31,30 +31,66 @@ export async function POST(req: Request) {
     const tmpFilePath = path.join(tmpDir, `${routeId}.webp`);
 
     // Optimize the image with the line drawn on it
-    await sharp(buffer)
-      .resize({
-        width: originalWidth,
-        height: originalHeight,
-        fit: "fill",
-      })
-      .webp({
-        quality: 80,
-        lossless: false,
-        nearLossless: false,
-        effort: 6,
-      })
-      .toFile(tmpFilePath);
+    // Create a processing loop to ensure file size is under 300KB
+    const MAX_SIZE_KB = 300;
+    let currentQuality = 80;
+    let currentWidth = originalWidth;
+    let currentHeight = originalHeight;
+    let finalBuffer;
 
-    // Read the optimized file
-    const optimizedBuffer = await fs.readFile(tmpFilePath);
+    while (true) {
+      // Process image with current settings
+      const processedImage = sharp(buffer)
+        .resize({
+          width: currentWidth,
+          height: currentHeight,
+          fit: "fill",
+        })
+        .webp({
+          quality: currentQuality,
+          lossless: false,
+          nearLossless: false,
+          effort: 6,
+        });
+
+      // Get buffer to check size
+      finalBuffer = await processedImage.toBuffer();
+      const fileSize = finalBuffer.length / 1024; // Size in KB
+
+      if (fileSize <= MAX_SIZE_KB) {
+        // Save to temp file if size is acceptable
+        await fs.writeFile(tmpFilePath, finalBuffer);
+        break;
+      }
+
+      if (currentQuality > 10) {
+        // First try reducing quality
+        currentQuality -= 10;
+      } else {
+        // Then try reducing dimensions
+        currentWidth = Math.round(currentWidth * 0.9);
+        currentHeight = Math.round(currentHeight * 0.9);
+        currentQuality = 60; // Reset quality after resizing
+
+        // Prevent images from becoming too small
+        if (
+          currentWidth < originalWidth * 0.5 ||
+          currentHeight < originalHeight * 0.5
+        ) {
+          await fs.writeFile(tmpFilePath, finalBuffer);
+          break;
+        }
+      }
+    }
 
     // Upload to Supabase Storage with a unique name to avoid caching issues
     const fileName = `${routeId}.webp`;
     const filePath = `${folderName}/${fileName}`;
 
+    // Use the optimized buffer directly instead of reading from file
     const { error: uploadError } = await supabase.storage
       .from("cactux")
-      .upload(filePath, optimizedBuffer, {
+      .upload(filePath, finalBuffer, {
         contentType: "image/webp",
         upsert: true,
       });
