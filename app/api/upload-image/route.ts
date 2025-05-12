@@ -13,12 +13,23 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { imageData, routeId, originalWidth, originalHeight, tableType } =
-      await req.json();
+    const {
+      imageData,
+      routeId,
+      originalWidth,
+      originalHeight,
+      tableType,
+      hasLine,
+    } = await req.json();
 
-    // Determine folder name based on table type
-    const folderName =
-      tableType === "boulder" ? "boulder_lines" : "routes_lines";
+    // Determine folder name based on table type and whether it has a line
+    const folderName = hasLine
+      ? tableType === "boulder"
+        ? "boulder_lines"
+        : "routes_lines"
+      : tableType === "boulder"
+      ? "boulder"
+      : "routes";
 
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
@@ -26,11 +37,11 @@ export async function POST(req: Request) {
 
     // Create temp directory
     const tmpDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), `${tableType}-lines-`)
+      path.join(os.tmpdir(), `${tableType}-image-`)
     );
     const tmpFilePath = path.join(tmpDir, `${routeId}.webp`);
 
-    // Optimize the image with the line drawn on it
+    // Optimize the image
     // Create a processing loop to ensure file size is under 300KB
     const MAX_SIZE_KB = 300;
     let currentQuality = 80;
@@ -106,7 +117,7 @@ export async function POST(req: Request) {
     const { error: updateError } = await supabase
       .from(tableType)
       .update({
-        image_line: publicUrl,
+        [hasLine ? "image_line" : "image"]: publicUrl,
       })
       .eq("id", routeId);
 
@@ -118,7 +129,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      message: "Image with line saved successfully",
+      message: "Image saved successfully",
     });
   } catch (error) {
     console.error("Error processing image:", error);

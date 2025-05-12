@@ -11,29 +11,38 @@ export default function RoutesContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      setError(null);
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
 
-      const { data, error } = await supabase
-        .from(tableType)
-        .select("id, name, image, image_line")
-        .order("name");
+    const { data, error } = await supabase
+      .from(tableType)
+      .select("id, name, image, image_line")
+      .order("name");
 
-      if (error) {
-        console.error(`Error fetching ${tableType}s:`, error);
-        setError(`Error loading ${tableType}s`);
-        setRoutes([]);
-      } else {
-        setRoutes(data as Route[]);
-      }
-
-      setIsLoading(false);
+    if (error) {
+      console.error(`Error fetching ${tableType}s:`, error);
+      setError(`Error loading ${tableType}s`);
+      setRoutes([]);
+    } else {
+      setRoutes(data as Route[]);
     }
 
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
     fetchData();
   }, [tableType]);
+
+  // Function to update a route in the routes array
+  const updateRoute = (updatedRoute: Route) => {
+    setRoutes((prevRoutes) =>
+      prevRoutes.map((route) =>
+        route.id === updatedRoute.id ? updatedRoute : route
+      )
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -64,7 +73,11 @@ export default function RoutesContent() {
           {error}
         </div>
       ) : (
-        <RouteVisualizer routes={routes} tableType={tableType} />
+        <RouteVisualizer
+          routes={routes}
+          tableType={tableType}
+          onRouteUpdate={updateRoute}
+        />
       )}
     </div>
   );

@@ -19,11 +19,13 @@ export interface Route {
 interface RouteVisualizerProps {
   routes: Route[];
   tableType: "route" | "boulder";
+  onRouteUpdate: (updatedRoute: Route) => void;
 }
 
 export default function RouteVisualizer({
   routes,
   tableType,
+  onRouteUpdate,
 }: RouteVisualizerProps) {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -36,6 +38,7 @@ export default function RouteVisualizer({
   const [noImageAvailable, setNoImageAvailable] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [lineFinished, setLineFinished] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | null;
@@ -43,6 +46,7 @@ export default function RouteVisualizer({
   const stageRef = useRef<any>(null);
   const imageRef = useRef<any>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load the selected route and its saved line if available
   useEffect(() => {
@@ -188,12 +192,12 @@ export default function RouteVisualizer({
         try {
           // Get the stage as a data URL with pixelRatio: 1 to maintain original dimensions
           const dataURL = stageRef.current.toDataURL({
-            pixelRatio: 1, // Changed from 2 to 1 to maintain original dimensions
+            pixelRatio: 1,
             mimeType: "image/png",
           });
 
           // Send to our API endpoint
-          const response = await fetch("/api/optimize-route-line", {
+          const response = await fetch("/api/upload-image", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -201,9 +205,10 @@ export default function RouteVisualizer({
             body: JSON.stringify({
               imageData: dataURL,
               routeId: selectedRoute.id,
-              originalWidth: image?.width, // Send original dimensions
+              originalWidth: image?.width,
               originalHeight: image?.height,
-              tableType: tableType, // Pass the table type to the API
+              tableType,
+              hasLine: true,
             }),
           });
 
@@ -223,10 +228,16 @@ export default function RouteVisualizer({
             lineImg.src = cachebustedUrl;
             lineImg.onload = () => {
               setLineSavedImage(data.url);
+              // Update the selectedRoute with the new line image URL
+              const updatedRoute = {
+                ...selectedRoute,
+                image_line: data.url,
+              };
+              setSelectedRoute(updatedRoute);
+              onRouteUpdate(updatedRoute);
             };
           }
 
-          // Replace alert with toast notification
           showToast("¡Línea de ruta guardada con éxito!", "success");
           setIsSaving(false);
         } catch (error) {
@@ -234,11 +245,92 @@ export default function RouteVisualizer({
           showToast("Error al guardar la línea", "error");
           setIsSaving(false);
         }
-      }, 100); // Small delay to ensure rendering is complete
+      }, 100);
     } catch (error) {
       console.error("Error saving line:", error);
       showToast("Error al guardar la línea", "error");
       setIsSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedRoute) return;
+
+    try {
+      setIsUploading(true);
+      const reader = new FileReader();
+
+      reader.onload = async (event) => {
+        if (!event.target?.result) return;
+
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            // Create a canvas to get the image data
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("Could not get canvas context");
+
+            ctx.drawImage(img, 0, 0);
+            const imageData = canvas.toDataURL("image/webp");
+
+            // Send to our API endpoint
+            const response = await fetch("/api/upload-image", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                imageData,
+                routeId: selectedRoute.id,
+                originalWidth: img.width,
+                originalHeight: img.height,
+                tableType,
+                hasLine: false,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error("Failed to upload image");
+            }
+
+            const data = await response.json();
+
+            // Update the image in the UI
+            const newImg = new window.Image();
+            newImg.crossOrigin = "Anonymous";
+            newImg.src = data.url;
+            newImg.onload = () => {
+              setImage(newImg);
+              setNoImageAvailable(false);
+              // Update the selectedRoute with the new image URL
+              const updatedRoute = {
+                ...selectedRoute,
+                image: data.url,
+              };
+              setSelectedRoute(updatedRoute);
+              onRouteUpdate(updatedRoute);
+            };
+
+            showToast("Imagen subida con éxito", "success");
+          } catch (error) {
+            console.error("Error uploading image:", error);
+            showToast("Error al subir la imagen", "error");
+          } finally {
+            setIsUploading(false);
+          }
+        };
+        img.src = event.target.result as string;
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Error reading file:", error);
+      showToast("Error al leer el archivo", "error");
+      setIsUploading(false);
     }
   };
 
@@ -310,67 +402,117 @@ export default function RouteVisualizer({
         </select>
       </div>
 
-      {image && (
+      {selectedRoute && (
         <div className="flex flex-wrap gap-2.5 mb-5">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+            accept="image/*"
+            className="hidden"
+          />
           <button
-            onClick={toggleDrawingMode}
-            disabled={isLoading || isSaving}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || isSaving || isUploading}
             className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
-            {drawingMode ? "Cancelar Dibujo" : "Dibujar Línea de Ruta"}
+            {isUploading ? (
+              <span className="flex items-center">
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Subiendo...
+              </span>
+            ) : (
+              "Subir Imagen"
+            )}
           </button>
-          {drawingMode && (
+          {image && (
             <>
               <button
-                onClick={undoLastPoint}
-                disabled={points.length < 2 || isLoading || isSaving}
-                className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                onClick={toggleDrawingMode}
+                disabled={isLoading || isSaving || isUploading}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                Deshacer Último Punto
+                {drawingMode ? "Cancelar Dibujo" : "Dibujar Línea de Ruta"}
               </button>
-              <button
-                onClick={finishLine}
-                disabled={points.length < 4 || isLoading || isSaving}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Finalizar Línea
-              </button>
-            </>
-          )}
-          {lineFinished && (
-            <button
-              onClick={saveLine}
-              disabled={!selectedRoute || isLoading || isSaving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSaving ? (
-                <span className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
+              {drawingMode && (
+                <>
+                  <button
+                    onClick={undoLastPoint}
+                    disabled={
+                      points.length < 2 || isLoading || isSaving || isUploading
+                    }
+                    className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Guardando...
-                </span>
-              ) : (
-                "Guardar Línea"
+                    Deshacer Último Punto
+                  </button>
+                  <button
+                    onClick={finishLine}
+                    disabled={
+                      points.length < 4 || isLoading || isSaving || isUploading
+                    }
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Finalizar Línea
+                  </button>
+                </>
               )}
-            </button>
+              {lineFinished && (
+                <button
+                  onClick={saveLine}
+                  disabled={
+                    !selectedRoute || isLoading || isSaving || isUploading
+                  }
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSaving ? (
+                    <span className="flex items-center">
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Guardando...
+                    </span>
+                  ) : (
+                    "Guardar Línea"
+                  )}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
